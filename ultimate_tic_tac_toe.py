@@ -9,9 +9,10 @@ class UltimateTicTacToe:
         # Initialize the winner as None
         self.winner = None
 
-    def print_board(self):
+    #Don't touch this ever.
+    def print_board(self,spacing=3):
         colors = {'X': '\033[91m', 'O': '\033[94m', 'reset': '\033[0m'}
-        print('╔═╤═╤═╦═╤═╤═╦═╤═╤═╗')
+        print("╔"+(("═"*spacing+"╤")*2+("═"*spacing+"╦"))*2+("═"*spacing+"╤")*2+"═"*spacing+"╗")
         for large_row in range(3):
             for small_row in range(3):
                 row_str = "║"
@@ -20,19 +21,19 @@ class UltimateTicTacToe:
                         player = self.small_boards[(large_row, large_col)][small_row][small_col]
                         if player in colors:
                             if self.check_small_board_win(self.small_boards[(large_row, large_col)]):
-                                row_str += f"{colors[player]}{player}{colors['reset']}"
+                                row_str += " "*((spacing-1)//2)+f"{colors[player]}{player}{colors['reset']}"+" "*(spacing//2)
                             else:
-                                row_str += f"{colors[player]}{player}{colors['reset']}"
+                                row_str += " "*((spacing-1)//2)+f"{colors[player]}{player}{colors['reset']}"+" "*(spacing//2)
                         else:
-                            row_str += player
+                            row_str += " "*((spacing-1)//2)+player+" "*(spacing//2)
                         row_str += ("│" if small_col % 3 != 2 else "║")
                 row_str = row_str[:-1] + "║"
                 print(row_str)
                 if small_row != 2:
-                    print('╟─┼─┼─╫─┼─┼─╫─┼─┼─╢')
+                    print('╟'+(("─"*spacing+"┼")*2+("─"*spacing+"╫"))*2+("─"*spacing+"┼")*2+"─"*spacing+"╢")
             if large_row != 2:
-                print('╠═╪═╪═╬═╪═╪═╬═╪═╪═╣')
-        print('╚═╧═╧═╩═╧═╧═╩═╧═╧═╝')
+                print('╠'+(("═"*spacing+"╪")*2+("═"*spacing+"╬"))*2+("═"*spacing+"╪")*2+"═"*spacing+"╣")
+        print('╚'+(("═"*spacing+"╧")*2+("═"*spacing+"╩"))*2+("═"*spacing+"╧")*2+"═"*spacing+"╝")
 
     def make_move(self, large_row, large_col, small_row, small_col):
         # Check if the specified large board is already won or full
@@ -51,6 +52,9 @@ class UltimateTicTacToe:
         # Check if the small board is won after the move
         if self.check_small_board_win(self.small_boards[(large_row, large_col)]):
             # Mark the large board as won by the current player
+            for i in range(0,3):
+                for j in range(0,3): 
+                    self.small_boards[(large_row, large_col)][i][j] = self.current_player  
             self.board[large_row][large_col] = self.current_player
             # Check if the large board is won after the move
             if self.check_large_board_win():
@@ -103,30 +107,41 @@ while not game.winner and not game.check_draw():
     if not current_grid or not game.board[current_grid[0]][current_grid[1]]:
     
         while True:
+            large_row = input("Enter the row number of the large board (0-2): ")
+            large_col = input("Enter the column number of the large board (0-2): ")
             try:
-                large_row = int(input("Enter the row number of the large board (0-2): "))
-                large_col = int(input("Enter the column number of the large board (0-2): "))
+                large_row = int(large_row)
+                large_col = int(large_col)
                 if not(large_col>=0 and large_col<=2 and large_row>=0 and large_row<=2):
                     print("Please provide a number from 0 to 2")
                     continue
                 break
             except:
+                if type(large_row) is str and "q" in large_row or type(large_col) is str and "q" in large_col:
+                    quit()
                 print("Please provide valid input (a number from 0 to 2)")
                 continue
+
         current_grid = [large_row,large_col]
     if game.board[current_grid[0]][current_grid[1]] !=" ":
         print("Large grid already won, change it.")
         current_grid = None
         continue
+
     while True:
+        small_row = input("Enter the row number of the small board (0-2): ")
+        small_col = input("Enter the column number of the small board (0-2): ")
         try:
-            small_row = int(input("Enter the row number of the small board (0-2): "))
-            small_col = int(input("Enter the column number of the small board (0-2): "))
+            small_row = int(small_row)
+            small_col = int(small_col)
+            
             if not(small_col>=0 and small_col<=2 and small_row>=0 and small_row<=2):
                 print("Please provide a number from 0 to 2")
                 continue
             break
         except:
+            if type(small_row) is str and small_row == "q" in small_row or type(small_col) is str and "q" in small_col:
+                quit()
             print("Please provide valid input (a number from 0 to 2)")
             continue
 
@@ -138,7 +153,7 @@ while not game.winner and not game.check_draw():
         elif game.check_draw():
             print("It's a draw!")
             break
-        if game.board[current_grid[0]][current_grid[1]] ==" ":
+        if game.board[small_row][small_col] ==" ":
             current_grid = [small_row, small_col]
         else:
             current_grid = None
