@@ -9,7 +9,12 @@ class UltimateTicTacToe:
         self.small_boards = {(i, j): [[' ' for _ in range(3)] for _ in range(3)] for i in range(3) for j in range(3)}
         # Initialize the winner as None
         self.winner = None
+        self.__available_grid_move = 9 #0-8 za polja, 9 katerokoli polje
 
+    def setAvailable(self,n):
+        self.__available_grid_move=n
+    def getAvailable(self):
+        return self.__available_grid_move
     #Don't touch this ever.
     def print_board(self,spacing=5):
         colors = {'X': '\033[91m', 'O': '\033[94m', 'reset': '\033[0m'}
@@ -82,8 +87,11 @@ class UltimateTicTacToe:
                 array_row[int(k[0])*3+row].extend(v[row])
         array_row= np.array(array_row)
         canonical, can_index = self.__get_canonical(array_row)
-        #TO-DO
+        print(canonical,can_index)
+
         #Add available game_state position (0-9)
+        full_hash = {"hash":canonical,"game_state":self.getAvailable(),"rotation":can_index}
+        return full_hash
 
     #Bolj ali manj zaradi print win
     def switch_player(self):
@@ -101,7 +109,7 @@ class UltimateTicTacToe:
 
         # Make the move on the small board
         self.small_boards[(large_row, large_col)][small_row][small_col] = self.current_player
-
+        self.setAvailable(small_row * 3 + small_col)
         # Check if the small board is won after the move
         if self.check_small_board_win(self.small_boards[(large_row, large_col)]):
             # Mark the large board as won by the current player
@@ -112,6 +120,7 @@ class UltimateTicTacToe:
             # Check if the large board is won after the move
             if self.check_large_board_win():
                 self.winner = self.current_player
+                self.setAvailable(9)
 
         # Switch to the other player
         self.current_player = 'O' if self.current_player == 'X' else 'X'
@@ -121,14 +130,14 @@ class UltimateTicTacToe:
         # Check rows, columns, and diagonals for a win
         for i in range(3):
             if board[i][0] == board[i][1] == board[i][2] != ' ':
-                return True, board[i][0]
+                return True
             if board[0][i] == board[1][i] == board[2][i] != ' ':
-                return True, board[0][i]
+                return True
         if board[0][0] == board[1][1] == board[2][2] != ' ':
-            return True, board[0][0]
+            return True
         if board[0][2] == board[1][1] == board[2][0] != ' ':
-            return True , board[0][2]
-        return False, " "
+            return True
+        return False
 
     def check_large_board_win(self):
         # Check rows, columns, and diagonals for a win
@@ -153,17 +162,21 @@ class UltimateTicTacToe:
 
 
 game = UltimateTicTacToe()
-game.unhash("OOOOOOOOOXO  OX OOOOX  XOO OXOX O XOOO X XO OXOOOO XX  OXO    XOO O  XX XX  XX XO1",0)
+#game.unhash("OOOOOOOOOXO  OX OOOOX  XOO OXOX O XOOO X XO OXOOOO XX  OXO    XOO O  XX XX  XX XO1",0)
+game.print_board()
+game.hash_board()
+#game.unhash("O X OOOOOXX X XOOO X XO OOOX   XOOOOX  O  OOO OOOXXOOO  XOOOOOOXOOOOOOOOXO OOOOOO1",0)
 game.print_board()
 game.hash_board()
 
 current_grid = None
 while not game.winner and not game.check_draw():
+    print(f"Available grid to move: {game.getAvailable()}")
     if not current_grid or not game.board[current_grid[0]][current_grid[1]]:
-    
         while True:
             large_row = input("Enter the row number of the large board (0-2): ")
             large_col = input("Enter the column number of the large board (0-2): ")
+            game.setAvailable(9)
             try:
                 large_row = int(large_row)
                 large_col = int(large_col)
@@ -212,5 +225,6 @@ while not game.winner and not game.check_draw():
         if game.board[small_row][small_col] ==" ":
             current_grid = [small_row, small_col]
         else:
+            game.setAvailable(9)
             current_grid = None
         print(f"Current small grid move: {current_grid}")
