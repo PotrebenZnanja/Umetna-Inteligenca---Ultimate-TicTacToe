@@ -1,3 +1,4 @@
+import numpy as np
 class UltimateTicTacToe:
     def __init__(self):
         # Initialize the 3x3 large board with empty values
@@ -10,7 +11,7 @@ class UltimateTicTacToe:
         self.winner = None
 
     #Don't touch this ever.
-    def print_board(self,spacing=3):
+    def print_board(self,spacing=5):
         colors = {'X': '\033[91m', 'O': '\033[94m', 'reset': '\033[0m'}
         print("╔"+(("═"*spacing+"╤")*2+("═"*spacing+"╦"))*2+("═"*spacing+"╤")*2+"═"*spacing+"╗")
         for large_row in range(3):
@@ -35,6 +36,33 @@ class UltimateTicTacToe:
                 print('╠'+(("═"*spacing+"╪")*2+("═"*spacing+"╬"))*2+("═"*spacing+"╪")*2+"═"*spacing+"╣")
         print('╚'+(("═"*spacing+"╧")*2+("═"*spacing+"╩"))*2+("═"*spacing+"╧")*2+"═"*spacing+"╝")
 
+    #Hash je string vrednosti polj + state (0-9), TO JE ZA SETTANJE STATES
+    def unhash(self,hash,rotation=0):
+        board = [] #To je 9x9, treba je dati v small boards
+        for i in range(0,len(hash)-1):
+            board.append(hash[i])
+        board = np.reshape(board,(9,9))
+        sub_arrays_dict={}
+        for idx in range(9):
+            row, col = divmod(idx, 3)
+            sub_arrays_dict[(row, col)] = board[row * 3:(row + 1) * 3, col * 3:(col + 1) * 3]
+        #Check won conditions to format the big board
+        for row in range(3):
+            for col in range(3):
+                win, player = self.check_small_board_win(sub_arrays_dict[(row,col)])
+                if win:
+                    self.board[row][col] = player
+                    sub_arrays_dict[(row,col)][:] = player
+
+        self.small_boards = sub_arrays_dict
+
+        #self.board=
+
+    #TO-DO Hash the board to canonical. Returns the rotation index as well (0-7)
+    def hash_board(self):
+        pass
+    def switch_player(self):
+        self.current_player = 'O' if self.current_player == 'X' else 'X'
     def make_move(self, large_row, large_col, small_row, small_col):
         # Check if the specified large board is already won or full
         if self.winner or self.board[large_row][large_col] != ' ':
@@ -68,14 +96,14 @@ class UltimateTicTacToe:
         # Check rows, columns, and diagonals for a win
         for i in range(3):
             if board[i][0] == board[i][1] == board[i][2] != ' ':
-                return True
+                return True, board[i][0]
             if board[0][i] == board[1][i] == board[2][i] != ' ':
-                return True
+                return True, board[0][i]
         if board[0][0] == board[1][1] == board[2][2] != ' ':
-            return True
+            return True, board[0][0]
         if board[0][2] == board[1][1] == board[2][0] != ' ':
-            return True
-        return False
+            return True , board[0][2]
+        return False, " "
 
     def check_large_board_win(self):
         # Check rows, columns, and diagonals for a win
@@ -100,7 +128,9 @@ class UltimateTicTacToe:
 
 
 game = UltimateTicTacToe()
+game.unhash("OOOOOOOOOXO  OX OOOOX  XOO OXOX O XOOO X XO OXOOOO XX  OXO    XOO O  XX XX  XX XO1",0)
 game.print_board()
+
 
 current_grid = None
 while not game.winner and not game.check_draw():
@@ -148,6 +178,7 @@ while not game.winner and not game.check_draw():
     if game.make_move(current_grid[0],current_grid[1], small_row, small_col):
         game.print_board()
         if game.winner:
+            game.switch_player()
             print(f"Player {game.current_player} wins!")
             break
         elif game.check_draw():
