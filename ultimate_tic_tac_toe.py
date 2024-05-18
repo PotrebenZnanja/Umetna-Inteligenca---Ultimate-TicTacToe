@@ -58,9 +58,34 @@ class UltimateTicTacToe:
 
         #self.board=
 
+    def __get_canonical(self,matrix):
+        matrices = []
+        #preveri rotacije (4x)
+        for i in range(4):
+            matrices.append(self.__matrix_to_hash(np.rot90(matrix,i)))
+        #preveri flip+rotacije (4x)
+        for i in range(4):
+            matrices.append(self.__matrix_to_hash(np.rot90(np.transpose(matrix),i)))
+
+        #Vrne canocical hash in index preobrazbe
+        return min(matrices),matrices.index(min(matrices))
+
+    def __matrix_to_hash(self,matrix):
+        return ''.join(matrix.flatten())
     #TO-DO Hash the board to canonical. Returns the rotation index as well (0-7)
     def hash_board(self):
-        pass
+        #za iskanje kanonicne oblike rabimo 8x prevrtet/izoblikovat board. naj bo po vrstnem redu '_', 'O', 'X'
+        #Tako kot je v ascii formatu ( oz. ord(symbol) )
+        array_row = [[] for _ in range(9)]
+        for k, v in self.small_boards.items():
+            for row in range(3):
+                array_row[int(k[0])*3+row].extend(v[row])
+        array_row= np.array(array_row)
+        canonical, can_index = self.__get_canonical(array_row)
+        #TO-DO
+        #Add available game_state position (0-9)
+
+    #Bolj ali manj zaradi print win
     def switch_player(self):
         self.current_player = 'O' if self.current_player == 'X' else 'X'
     def make_move(self, large_row, large_col, small_row, small_col):
@@ -130,7 +155,7 @@ class UltimateTicTacToe:
 game = UltimateTicTacToe()
 game.unhash("OOOOOOOOOXO  OX OOOOX  XOO OXOX O XOOO X XO OXOOOO XX  OXO    XOO O  XX XX  XX XO1",0)
 game.print_board()
-
+game.hash_board()
 
 current_grid = None
 while not game.winner and not game.check_draw():
