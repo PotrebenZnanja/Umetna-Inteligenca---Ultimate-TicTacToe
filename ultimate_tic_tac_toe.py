@@ -323,11 +323,79 @@ def play_normal(game):
 if __name__ == "__main__":
     game = UltimateTicTacToe()
     #game.unhash("O X OOOOOXX X XOOO X XO OOOX   XOOOOX  O  OOO OOOXXOOO  XOOOOOOXOOOOOOOOXO OOOOOO1",0)    
+    while True:
+        p1_monte = input('Use AI for p1? (y/n) ')
+        if p1_monte == 'q':
+            quit()
+        if p1_monte in ['y', 'n']:
+            break
+    if p1_monte == 'y':
+        while True:
+            p1_monte_strat_in = input('What AI strategy for p1? (1/2/3/4) ')
+            if p1_monte_strat_in == 'q':
+                quit()
+            try:
+                p1_monte_strat = int(p1_monte_strat_in)
+                if p1_monte_strat < 1 or p1_monte_strat > 4:
+                    continue
+                break
+            except:
+                print("Please provide a valid number")
+                break
+        while True:
+            p1_monte_iter_in = input('Iteration count for p1 AI? (default 5000) ')
+            if p1_monte_iter_in == 'q':
+                quit()
+            if p1_monte_iter_in == '':
+                p1_monte_iter = 5000
+                break
+            try:
+                p1_monte_iter = int(p1_monte_iter_in)
+                break
+            except:
+                print("Please provide a valid number")
+                continue
+
+    while True:
+        p2_monte = input('Use AI for p2? (y/n) ')
+        if p2_monte == 'q':
+            quit()
+        if p2_monte in ['y', 'n']:
+            break
+    if p2_monte == 'y':
+        while True:
+            p2_monte_strat_in = input('What AI strategy for p2? (1/2/3/4) ')
+            if p2_monte_strat_in == 'q':
+                quit()
+            try:
+                p2_monte_strat = int(p2_monte_strat_in)
+                if p2_monte_strat < 1 or p2_monte_strat > 4:
+                    continue
+                break
+            except:
+                print("Please provide a valid number")
+                break
+        while True:
+            p2_monte_iter_in = input('Iteration count for p2 AI? (default 5000) ')
+            if p2_monte_iter_in == 'q':
+                quit()
+            if p2_monte_iter_in == '':
+                p2_monte_iter = 5000
+                break
+            try:
+                p2_monte_iter = int(p2_monte_iter_in)
+                break
+            except:
+                print("Please provide a valid number")
+                continue
     
     game.print_board()
     if not game.check_end():
         while True:
-            play_monte(game,100)
+            if p1_monte == 'y':
+                play_monte(game,p1_monte_iter)
+            else:
+                play_normal(game)
     
             if game.check_draw():
                 print("It's a draw!")
@@ -337,7 +405,11 @@ if __name__ == "__main__":
                 print(f"Player {game.current_player} wins!")
                 break
             
-            play_monte(game,100)
+            if p2_monte == 'y':
+                play_monte(game,p2_monte_iter)
+            else:
+                play_normal(game)
+
             if game.check_draw():
                 print("It's a draw!")
                 break
