@@ -26,11 +26,34 @@ class MCTSNode:
         self.children.append(child)
         return child
 
-    def update(self, result):
+    def update(self, result, strategy):
         self.visits += 1
-        val = 1 if result == self.state.current_player else \
-        -1 if result == self.state.other_player else 0.5
-        self.wins += result
+
+        # normal wins/losses
+        if strategy == 1:
+            val = 1 if result == self.state.current_player else \
+            -1 if result == self.state.other_player else 0.5
+
+        # "wants to win", avoids positions where only his opponent can win
+        elif strategy == 2:
+            val = 1 if result == self.state.current_player else \
+            -1 if result == self.state.other_player else \
+            -2 if result == self.state.other_player | 4 else 0.5
+
+        # "doesn't want to lose", prefers positions where only he can win/draw
+        elif strategy == 3:
+            val = 2 if result == self.state.current_player | 4 else \
+            1 if result == self.state.current_player else \
+            -1 if result == self.state.other_player else 0.5
+
+        # combined 2,3:
+        elif strategy == 4:
+            val = 2 if result == self.state.current_player | 4 else \
+            1 if result == self.state.current_player else \
+            -1 if result == self.state.other_player else \
+            -2 if result == self.state.other_player | 4 else 0.5
+            
+        self.wins += val
 
     def __str__(self):
         return f"{self.visits}, {self.wins}"
@@ -225,7 +248,7 @@ class UltimateTicTacToe:
         winner = self.winning_state
         return winner
 
-    def mcts(self, simulations):
+    def mcts(self, simulations, strategy):
         root = MCTSNode(self)
         for _ in range(simulations):
             node = root
@@ -246,7 +269,7 @@ class UltimateTicTacToe:
             result = state.simulate_random_playout()
             # Backpropagation
             while node is not None:
-                node.update(result)
+                node.update(result, strategy)
                 node = node.parent
 
         print(sorted(root.children, key=lambda c: c.visits)[-1])
@@ -262,11 +285,11 @@ class UltimateTicTacToe:
         return new_game
 
 
-def play_monte(game, simulations=5000):
+def play_monte(game, simulations=5000, strategy=1):
         current_grid = game.getAvailable()
         print(f"Current small grid move: {current_grid}")
 
-        move = game.mcts(simulations)
+        move = game.mcts(simulations, strategy)
         large_row,large_col,small_row,small_col= move
         game.make_move(large_row, large_col, small_row, small_col)
         game.print_board()
@@ -393,7 +416,7 @@ if __name__ == "__main__":
     if not game.check_end():
         while True:
             if p1_monte == 'y':
-                play_monte(game,p1_monte_iter)
+                play_monte(game,p1_monte_iter,p1_monte_strat)
             else:
                 play_normal(game)
     
@@ -406,7 +429,7 @@ if __name__ == "__main__":
                 break
             
             if p2_monte == 'y':
-                play_monte(game,p2_monte_iter)
+                play_monte(game,p2_monte_iter,p2_monte_strat)
             else:
                 play_normal(game)
 
