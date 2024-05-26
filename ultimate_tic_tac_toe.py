@@ -1,7 +1,11 @@
 import numpy as np
 import random
 import math
+from sortedcontainers import SortedDict
+import json
 
+with open('macro_winstates.json') as f:
+    large_board_winstates = json.load(f, object_pairs_hook=SortedDict)
 
 class MCTSNode:
     def __init__(self, state, move=None, parent=None):
@@ -32,19 +36,19 @@ class MCTSNode:
 class UltimateTicTacToe:
     def __init__(self):
         # Initialize the 3x3 large board with empty values
-        self.board = [[' ' for _ in range(3)] for _ in range(3)]
-        # Initialize the current player (X starts first)
-        self.current_player = 'X'
-        # Initialize the small boards as empty dictionaries
-        self.small_boards = {(i, j): [[' ' for _ in range(3)] for _ in range(3)] for i in range(3) for j in range(3)}
-        # Initialize the winner as None
-        self.winner = None
-        self.__available_grid_move = 9 #0-8 za polja, 9 katerokoli polje
+        self.board = np.zeros((3, 3), dtype=np.int8)
+        # Initialize the current player (X=1,Y=2, X starts first)
+        self.current_player = 1
+        # Initialize the small boards
+        self.small_boards = np.zeros((3, 3, 3, 3), dtype=np.int8)
+        # Initialize the winning_state as 7 (can be p1 win,p2 win,draw)
+        self.winning_state = 7
+        self.grid_move = None #(y, x), None if every move possible
 
     def setAvailable(self,n):
-        self.__available_grid_move=n
+        self.grid_move=n
     def getAvailable(self):
-        return self.__available_grid_move
+        return self.grid_move
     #Don't touch this ever.
     def print_board(self,spacing=5):
         colors = {'X': '\033[91m', 'O': '\033[94m', 'reset': '\033[0m'}
@@ -54,9 +58,10 @@ class UltimateTicTacToe:
                 row_str = "║"
                 for large_col in range(3):
                     for small_col in range(3):
-                        player = self.small_boards[(large_row, large_col)][small_row][small_col]
+                        player = self.small_boards[large_row, large_col, small_row, small_col]
+                        player = 'X' if player == 1 else 'O' if player == 2 else ' '
                         if player in colors:
-                            if self.check_small_board_win(self.small_boards[(large_row, large_col)]):
+                            if self.check_small_board_win(self.small_boards[large_row, large_col]):
                                 row_str += " "*((spacing-1)//2)+f"{colors[player]}{player}{colors['reset']}"+" "*(spacing//2)
                             else:
                                 row_str += " "*((spacing-1)//2)+f"{colors[player]}{player}{colors['reset']}"+" "*(spacing//2)
@@ -71,147 +76,127 @@ class UltimateTicTacToe:
                 print('╠'+(("═"*spacing+"╪")*2+("═"*spacing+"╬"))*2+("═"*spacing+"╪")*2+"═"*spacing+"╣")
         print('╚'+(("═"*spacing+"╧")*2+("═"*spacing+"╩"))*2+("═"*spacing+"╧")*2+"═"*spacing+"╝")
 
-    #Hash je string vrednosti polj + state (0-9), TO JE ZA SETTANJE STATES
-    def unhash(self,hash,rotation=0):
-        board = [] #To je 9x9, treba je dati v small boards
-        for i in range(0,len(hash)-1):
-            board.append(hash[i])
-        board = np.reshape(board,(9,9))
-        sub_arrays_dict={}
-        for idx in range(9):
-            row, col = divmod(idx, 3)
-            sub_arrays_dict[(row, col)] = board[row * 3:(row + 1) * 3, col * 3:(col + 1) * 3]
-        #Check won conditions to format the big board
-        for row in range(3):
-            for col in range(3):
-                win, player = self.check_small_board_win(sub_arrays_dict[(row,col)],True)
-                if win:
-                    self.board[row][col] = player
-                    sub_arrays_dict[(row,col)][:] = player
+    def hash_board(self,board):
+        rot1 = np.rot90(np.rot90(board, axes=(2,3)))
+        rot2 = np.rot90(np.rot90(rot1, axes=(2,3)))
+        rot3 = np.rot90(np.rot90(rot2, axes=(2,3)))
+        flip = np.transpose(board, axes=(1,0,3,2))
+        flip_rot1 = np.rot90(np.rot90(flip, axes=(2,3)))
+        flip_rot2 = np.rot90(np.rot90(flip_rot1, axes=(2,3)))
+        flip_rot3 = np.rot90(np.rot90(flip_rot2, axes=(2,3)))
+    
+        board_hashes = map(__matrix_to_hash, [board, rot1, rot2, rot3, flip, flip_rot1, flip_rot2, flip_rot3])
 
-        self.small_boards = sub_arrays_dict
+        subgame = self.__available_grid_move
+        s_board = np.zeros((3, 3), dtype=np.int8)
+        if subgame == 9:
+            s_board_hashes = [self.__matrix_to_hash(s_board)] * 8
+        else:
+            s_board[subgame] = 1
+            s_rot1 = np.rot90(s_board)
+            s_rot2 = np.rot90(s_rot1)
+            s_rot3 = np.rot90(s_rot2)
+            s_flip = np.transpose(s_board)
+            s_flip_rot1 = np.rot90(s_flip)
+            s_flip_rot2 = np.rot90(s_flip_rot1)
+            s_flip_rot3 = np.rot90(s_flip_rot2)
+    
+            s_board_hashes = map(self.__matrix_to_hash, [s_board, s_rot1, s_rot2, s_rot3, s_flip, s_flip_rot1, s_flip_rot2, s_flip_rot3])
+    
+        combined_hashes = map(lambda x: x[0] + x[1], zip(board_hashes, s_board_hashes))
+        
+        return max(combined_hashes)
 
-        #self.board=
-
-    def __get_canonical(self,matrix):
-        matrices = []
-        #preveri rotacije (4x)
-        for i in range(4):
-            matrices.append(self.__matrix_to_hash(np.rot90(matrix,i)))
-        #preveri flip+rotacije (4x)
-        for i in range(4):
-            matrices.append(self.__matrix_to_hash(np.rot90(np.transpose(matrix),i)))
-
-        #Vrne canocical hash in index preobrazbe
-        return min(matrices),matrices.index(min(matrices))
+    def hash_large_board(self):
+        rot1 = np.rot90(self.board)
+        rot2 = np.rot90(rot1)
+        rot3 = np.rot90(rot2)
+        flip = np.transpose(self.board)
+        flip_rot1 = np.rot90(flip)
+        flip_rot2 = np.rot90(flip_rot1)
+        flip_rot3 = np.rot90(flip_rot2)
+    
+        best = max([
+            (self.__matrix_to_hash(rot1), rot1, 1),
+            (self.__matrix_to_hash(rot2), rot2, 2),
+            (self.__matrix_to_hash(rot3), rot3, 3),
+            (self.__matrix_to_hash(flip), flip, 4),
+            (self.__matrix_to_hash(flip_rot1), flip_rot1, 5),
+            (self.__matrix_to_hash(flip_rot2), flip_rot2, 6),
+            (self.__matrix_to_hash(flip_rot3), flip_rot3, 7)
+        ], key=lambda x: x[0])
+    
+        board_hash = self.__matrix_to_hash(self.board)
+        
+        if best[0] > board_hash:
+            return best
+        else:
+            return board_hash, self.board, 0
 
     def __matrix_to_hash(self,matrix):
-        return ''.join(matrix.flatten())
-    #TO-DO Hash the board to canonical. Returns the rotation index as well (0-7)
-    def hash_board(self):
-        #za iskanje kanonicne oblike rabimo 8x prevrtet/izoblikovat board. naj bo po vrstnem redu '_', 'O', 'X'
-        #Tako kot je v ascii formatu ( oz. ord(symbol) )
-        array_row = [[] for _ in range(9)]
-        for k, v in self.small_boards.items():
-            for row in range(3):
-                array_row[int(k[0])*3+row].extend(v[row])
-        array_row= np.array(array_row)
-        canonical, can_index = self.__get_canonical(array_row)
-        print(f"Board hash: \"{canonical}\"\nRotation: {can_index}")
-
-        #Add available game_state position (0-9)
-        full_hash = {"hash":canonical,"game_state":self.getAvailable(),"rotation":can_index}
-        return full_hash
+        return ''.join(map(str, matrix.ravel()))
 
     #Bolj ali manj zaradi print win
     def switch_player(self):
-        self.current_player = 'O' if self.current_player == 'X' else 'X'
+        self.current_player = 2 if self.current_player == 1 else 1
     def make_move(self, large_row, large_col, small_row, small_col):
-        # Check if the specified large board is already won or full
-        if self.winner or self.board[large_row][large_col] != ' ':
-            print("Invalid move! Large board already won or full.")
-            return False
-
-        # Check if the specified small board is already won or full
-        if self.small_boards[(large_row, large_col)][small_row][small_col] != ' ':
-            print(large_row, large_col)
-            print("Invalid move! Small board already won or full.")
-            return False
-
         # Make the move on the small board
-        self.small_boards[(large_row, large_col)][small_row][small_col] = self.current_player
-        self.setAvailable(small_row * 3 + small_col)
+        self.small_boards[large_row, large_col, small_row, small_col] = self.current_player
+        
         # Check if the small board is won after the move
-        if self.check_small_board_win(self.small_boards[(large_row, large_col)]):
+        if self.check_small_board_win(self.small_boards[large_row, large_col]):
+            self.small_boards[large_row, large_col] = self.current_player
             # Mark the large board as won by the current player
-            for i in range(0,3):
-                for j in range(0,3): 
-                    self.small_boards[(large_row, large_col)][i][j] = self.current_player  
-            self.board[large_row][large_col] = self.current_player
+            self.board[large_row, large_col] = self.current_player
             # Check if the large board is won after the move
-            if self.check_large_board_win():
-                self.setAvailable(9)
+            self.winning_state = large_board_winstates[self.hash_large_board()[0]]
+
+        # prepare to move the grid to the quadrant this was played
+        # small_row -> large_row, small_col -> large_col
+        if self.check_small_board_full(small_row, small_col):
+            self.setAvailable(None)
+        else:
+            self.setAvailable((small_row, small_col))
 
         # Switch to the other player
-        self.current_player = 'O' if self.current_player == 'X' else 'X'
-        return True
+        self.switch_player()
 
-    def check_small_board_win(self, board,player=None):
+    def check_small_board_win(self, board):
         # Check rows, columns, and diagonals for a win
         for i in range(3):
-            if board[i][0] == board[i][1] == board[i][2] != ' ':
-                return True if not player else (True, board[i][0])
-            if board[0][i] == board[1][i] == board[2][i] != ' ':
-                return True if not player else (True, board[0][i])
-        if board[0][0] == board[1][1] == board[2][2] != ' ':
-            return True if not player else (True, board[0][0])
-        if board[0][2] == board[1][1] == board[2][0] != ' ':
-            return True if not player else (True, board[0][2])
-        return False if not player else (False, '')
-
-    def check_large_board_win(self):
-        # Check rows, columns, and diagonals for a win
-        for i in range(3):
-            if self.board[i][0] == self.board[i][1] == self.board[i][2] != ' ':
-                self.winner = self.board[i][0]
+            if board[i][0] == board[i][1] == board[i][2] != 0:
                 return True
-            if self.board[0][i] == self.board[1][i] == self.board[2][i] != ' ':
-                self.winner = self.board[0][i]
+            if board[0][i] == board[1][i] == board[2][i] != 0:
                 return True
-        if self.board[0][0] == self.board[1][1] == self.board[2][2] != ' ':
-            self.winner = self.board[0][0]
+        if board[0][0] == board[1][1] == board[2][2] != 0:
             return True
-        if self.board[0][2] == self.board[1][1] == self.board[2][0] != ' ':
-            self.winner = self.board[0][2]
+        if board[0][2] == board[1][1] == board[2][0] != 0:
             return True
         return False
 
-    def check_draw(self):
-        # Check if the game is a draw (all small boards are full)
-        for key in self.small_boards:
-            for row in self.small_boards[key]:
-                if ' ' in row:
-                    return False
-        return True
+    def check_small_board_full(self, row, col):
+        return np.all(self.small_boards[row, col] != 0)
 
+    def check_draw(self):
+        # Check if the game is a draw
+        return self.winning_state == 4
+    
+    def check_end(self):
+        # Check if the game is a draw
+        return self.winning_state == 1 or self.winning_state == 2 or self.winning_state == 4
+    
     def get_available_moves(self):
-        available_moves = []
-        if self.getAvailable() == 9:
-            for large_row in range(3):
-                for large_col in range(3):
-                    if self.board[large_row][large_col] == ' ':
-                        for small_row in range(3):
-                            for small_col in range(3):
-                                if self.small_boards[(large_row, large_col)][small_row][small_col] == ' ':
-                                    available_moves.append((large_row, large_col, small_row, small_col))
+        def gen(a):
+            while True:
+                yield a
+
+        subgame = self.getAvailable()
+        if subgame is None:
+            valid = np.where(self.small_boards == 0)
+            return list(zip(*valid))
         else:
-            large_row, large_col = divmod(self.getAvailable(), 3)
-            if self.board[large_row][large_col] == ' ':
-                for small_row in range(3):
-                    for small_col in range(3):
-                        if self.small_boards[(large_row, large_col)][small_row][small_col] == ' ':
-                            available_moves.append((large_row, large_col, small_row, small_col))
-        return available_moves
+            valid = np.where(self.small_boards[subgame] == 0)
+            return list(zip(gen(subgame[0]), gen(subgame[1]), *valid))
 
     def simulate_random_playout(self):
         current_player = self.current_player
@@ -220,18 +205,18 @@ class UltimateTicTacToe:
             return 0.5  # Draw
         move = random.choice(available_moves)
         self.make_move(*move)
-        while not self.winner and not self.check_draw():
+        while not self.check_end():
             available_moves = self.get_available_moves()
             if not available_moves:
                 #print("no more available moves")
                 break
             move = random.choice(available_moves)
             self.make_move(*move)
-        winner = self.winner
+        winner = self.winning_state
         self.__init__()  # Reset the board
-        if winner == 'X':
+        if winner == 1:
             return 1
-        elif winner == 'O':
+        elif winner == 2:
             return 0
         else:
             return 0.5
@@ -265,23 +250,22 @@ class UltimateTicTacToe:
 
     def copy(self):
         new_game = UltimateTicTacToe()
-        new_game.board = [row[:] for row in self.board]
-        new_game.small_boards = {k: [row[:] for row in v] for k, v in self.small_boards.items()}
+        new_game.board = self.board.copy()
+        new_game.small_boards = self.small_boards.copy()
         new_game.current_player = self.current_player
-        new_game.winner = self.winner
-        new_game.__available_grid_move = self.__available_grid_move
+        new_game.winning_state = self.winning_state
+        new_game.grid_move = self.grid_move
         return new_game
 
 
 def play_monte(game, simulations=1000):
-    current_grid = None
-    while not game.winner and not game.check_draw():
-        print(f"Available grid to move: {game.getAvailable()}")
-        if not current_grid or not game.board[current_grid[0]][current_grid[1]]:
+    while not game.check_end():
+        current_grid = game.getAvailable()
+        print(f"Available grid to move: {'Any' if not current_grid else current_grid}")
+        if not current_grid:
             while True:
                 large_row = input("Enter the row number of the large board (0-2): ")
                 large_col = input("Enter the column number of the large board (0-2): ")
-                game.setAvailable(9)
                 try:
                     large_row = int(large_row)
                     large_col = int(large_col)
@@ -294,11 +278,11 @@ def play_monte(game, simulations=1000):
                         quit()
                     print("Please provide valid input (a number from 0 to 2)")
                     continue
+        else:
+            large_row, large_col = current_grid
 
-            current_grid = [large_row,large_col]
-        if game.board[current_grid[0]][current_grid[1]] !=" ":
-            print("Large grid already won, change it.")
-            current_grid = None
+        if game.check_small_board_full(large_row, large_col):
+            print("This board is already full, select another.")
             continue
 
         while True:
@@ -318,44 +302,37 @@ def play_monte(game, simulations=1000):
                 print("Please provide valid input (a number from 0 to 2)")
                 continue
 
-        if game.make_move(current_grid[0],current_grid[1], small_row, small_col):
-            game.print_board()
-            if game.winner:
-                #game.switch_player()
-                print(f"Player {game.current_player} wins!")
-                break
-            elif game.check_draw():
-                print("It's a draw!")
-                break
-            if game.board[small_row][small_col] ==" ":
-                current_grid = [small_row, small_col]
-            else:
-                game.setAvailable(9)
-                current_grid = None
-            print(f"Current small grid move: {current_grid}")
+        if game.small_boards[large_row, large_col, small_row, small_col] != 0:
+            print("This location is already full, select another.")
+            continue
+
+        game.make_move(large_row, large_col, small_row, small_col)
+        game.print_board()
+        if game.check_draw():
+            print("It's a draw!")
+            break
+        elif game.check_end():
+            game.switch_player()
+            print(f"Player {game.current_player} wins!")
+            break
+        current_grid = game.getAvailable()
+        print(f"Current small grid move: {current_grid}")
 
         # Monte Carlo Tree Search
-        if not game.winner and not game.check_draw() and game.current_player=="O":
+        if not game.check_end() and game.current_player==2:
             move = game.mcts(simulations)
             print(f"Monte Carlo suggests move: {move}")
             large_row,large_col,small_row,small_col= move
-            if(not current_grid):
-                current_grid = [large_row,large_col]
-            print(move)
-            if game.make_move(current_grid[0],current_grid[1],small_row,small_col):
-                game.print_board()
-                if game.winner:
-                    print(f"Player {game.current_player} wins!")
-                    break
-                elif game.check_draw():
-                    print("It's a draw!")
-                    break
-                if game.board[small_row][small_col] ==" ":
-                    current_grid = [small_row, small_col]
-                else:
-                    game.setAvailable(9)
-                    current_grid = None
-            game.hash_board()
+            game.make_move(large_row, large_col, small_row, small_col)
+            game.print_board()
+            if game.check_draw():
+                print("It's a draw!")
+                break
+            elif game.check_end():
+                game.switch_player()
+                print(f"Player {game.current_player} wins!")
+                break
+
 def play_normal(game):
     current_grid = None
     while not game.winner and not game.check_draw():
@@ -364,7 +341,7 @@ def play_normal(game):
             while True:
                 large_row = input("Enter the row number of the large board (0-2): ")
                 large_col = input("Enter the column number of the large board (0-2): ")
-                game.setAvailable(9)
+                game.setAvailable(None)
                 try:
                     large_row = int(large_row)
                     large_col = int(large_col)
@@ -414,7 +391,7 @@ def play_normal(game):
             if game.board[small_row][small_col] == " ":
                 current_grid = [small_row, small_col]
             else:
-                game.setAvailable(9)
+                game.setAvailable(None)
                 current_grid = None
             print(f"Current small grid move: {current_grid}")
 
