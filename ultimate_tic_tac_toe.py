@@ -75,6 +75,13 @@ class UltimateTicTacToe:
         self.grid_move=n
     def getAvailable(self):
         return self.grid_move
+    def resetBoard(self):
+        self.board = np.zeros((3, 3), dtype=np.int8)
+        self.small_boards = np.zeros((3, 3, 3, 3), dtype=np.int8)
+        self.current_player = 1
+        self.other_player = 2
+        self.winning_state = 7
+        self.grid_move = None
     #Don't touch this ever.
     def print_board(self,spacing=5):
         colors = {'X': '\033[91m', 'O': '\033[94m', 'reset': '\033[0m'}
@@ -272,7 +279,7 @@ class UltimateTicTacToe:
                 node.update(result, strategy)
                 node = node.parent
 
-        print(sorted(root.children, key=lambda c: c.visits)[-1])
+        #print(sorted(root.children, key=lambda c: c.visits)[-1])
         return sorted(root.children, key=lambda c: c.visits)[-1].move
 
     def copy(self):
@@ -285,14 +292,15 @@ class UltimateTicTacToe:
         return new_game
 
 
-def play_monte(game, simulations=5000, strategy=1):
+def play_monte(game, simulations=5000, strategy=1,print_ = True):
         current_grid = game.getAvailable()
-        print(f"Current small grid move: {current_grid}")
+        #print(f"Current small grid move: {current_grid}")
 
         move = game.mcts(simulations, strategy)
         large_row,large_col,small_row,small_col= move
         game.make_move(large_row, large_col, small_row, small_col)
-        game.print_board()
+        if print_:
+            game.print_board()
 
 def play_normal(game):
     current_grid = game.getAvailable()
@@ -345,8 +353,10 @@ def play_normal(game):
 
 if __name__ == "__main__":
     game = UltimateTicTacToe()
-    #game.unhash("O X OOOOOXX X XOOO X XO OOOX   XOOOOX  O  OOO OOOXXOOO  XOOOOOOXOOOOOOOOXO OOOOOO1",0)    
+    #game.unhash("O X OOOOOXX X XOOO X XO OOOX   XOOOOX  O  OOO OOOXXOOO  XOOOOOOXOOOOOOOOXO OOOOOO1",0)
+    num_of_games = 1
     while True:
+        num_of_games = int(input('Number of games'))
         p1_monte = input('Use AI for p1? (y/n) ')
         if p1_monte == 'q':
             quit()
@@ -411,35 +421,51 @@ if __name__ == "__main__":
             except:
                 print("Please provide a valid number")
                 continue
-    
-    game.print_board()
-    if not game.check_end():
-        while True:
-            if p1_monte == 'y':
-                play_monte(game,p1_monte_iter,p1_monte_strat)
-            else:
-                play_normal(game)
-    
-            if game.check_draw():
-                print("It's a draw!")
-                break
-            elif game.check_end():
-                game.switch_player()
-                print(f"Player {game.current_player} wins!")
-                break
-            
-            if p2_monte == 'y':
-                play_monte(game,p2_monte_iter,p2_monte_strat)
-            else:
-                play_normal(game)
 
-            if game.check_draw():
-                print("It's a draw!")
-                break
-            elif game.check_end():
-                game.switch_player()
-                print(f"Player {game.current_player} wins!")
-                break
+    results = [0,0,0] #p1, tie, p2
+    for game_num in range(num_of_games):
+        #game.print_board()
+        game.resetBoard()
+        print("Game ",game_num+1)
+        if not game.check_end():
+            while True:
+                if p1_monte == 'y':
+                    play_monte(game,p1_monte_iter,p1_monte_strat,print_=False)
+                else:
+                    play_normal(game)
+
+                if game.check_draw():
+                    print("It's a draw!")
+                    results[1] += 1
+                    break
+                elif game.check_end():
+                    game.switch_player()
+                    if game.current_player==1:
+                        results[0]+=1
+                    else:
+                        results[2]+=1
+                    print(f"Player {game.current_player} wins!")
+                    break
+
+                if p2_monte == 'y':
+                    play_monte(game,p2_monte_iter,p2_monte_strat,print_=False)
+                else:
+                    play_normal(game)
+
+                if game.check_draw():
+                    print("It's a draw!")
+                    results[1]+=1
+                    break
+                elif game.check_end():
+                    game.switch_player()
+                    print(f"Player {game.current_player} wins!")
+                    if game.current_player==1:
+                        results[0]+=1
+                    else:
+                        results[2]+=1
+                    break
+            print(f"{p2_monte_strat}&{results[0]} & {results[1]} & {results[2]} & {p2_monte_iter}")
+    print(results)
     #play_normal(game)
     '''game.print_board()
     while not game.winner and not game.check_draw():
