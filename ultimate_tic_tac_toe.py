@@ -28,6 +28,8 @@ class MCTSNode:
 
     def update(self, result):
         self.visits += 1
+        val = 1 if result == self.state.current_player else \
+        -1 if result == self.state.other_player else 0.5
         self.wins += result
 
     def __str__(self):
@@ -39,6 +41,7 @@ class UltimateTicTacToe:
         self.board = np.zeros((3, 3), dtype=np.int8)
         # Initialize the current player (X=1,Y=2, X starts first)
         self.current_player = 1
+        self.other_player = 2
         # Initialize the small boards
         self.small_boards = np.zeros((3, 3, 3, 3), dtype=np.int8)
         # Initialize the winning_state as 7 (can be p1 win,p2 win,draw)
@@ -59,9 +62,9 @@ class UltimateTicTacToe:
                 for large_col in range(3):
                     for small_col in range(3):
                         player = self.small_boards[large_row, large_col, small_row, small_col]
-                        player = 'X' if player == 1 else 'O' if player == 2 else ' '
+                        player = 'X' if player == 1 else 'O' if player == 2 else '=' if player == 4 else ' '
                         if player in colors:
-                            if self.check_small_board_win(self.small_boards[large_row, large_col]):
+                            if self.check_small_board_win(large_row, large_col):
                                 row_str += " "*((spacing-1)//2)+f"{colors[player]}{player}{colors['reset']}"+" "*(spacing//2)
                             else:
                                 row_str += " "*((spacing-1)//2)+f"{colors[player]}{player}{colors['reset']}"+" "*(spacing//2)
@@ -139,17 +142,26 @@ class UltimateTicTacToe:
     #Bolj ali manj zaradi print win
     def switch_player(self):
         self.current_player = 2 if self.current_player == 1 else 1
+        self.other_player = 2 if self.other_player == 1 else 1
     def make_move(self, large_row, large_col, small_row, small_col):
         # Make the move on the small board
         self.small_boards[large_row, large_col, small_row, small_col] = self.current_player
         
         # Check if the small board is won after the move
-        if self.check_small_board_win(self.small_boards[large_row, large_col]):
+        if self.check_small_board_win(large_row, large_col):
             self.small_boards[large_row, large_col] = self.current_player
             # Mark the large board as won by the current player
             self.board[large_row, large_col] = self.current_player
             # Check if the large board is won after the move
+            h = self.hash_large_board()[0]
+            if h not in large_board_winstates:
+                print(self.board, self.small_boards)
+            self.winning_state = large_board_winstates[h]
+        elif self.check_small_board_full(large_row, large_col):
+            self.small_boards[large_row, large_col] = 4
+            self.board[large_row, large_col] = 4
             self.winning_state = large_board_winstates[self.hash_large_board()[0]]
+            
 
         # prepare to move the grid to the quadrant this was played
         # small_row -> large_row, small_col -> large_col
@@ -161,7 +173,8 @@ class UltimateTicTacToe:
         # Switch to the other player
         self.switch_player()
 
-    def check_small_board_win(self, board):
+    def check_small_board_win(self, row, col):
+        board = self.small_boards[row, col]
         # Check rows, columns, and diagonals for a win
         for i in range(3):
             if board[i][0] == board[i][1] == board[i][2] != 0:
@@ -186,6 +199,9 @@ class UltimateTicTacToe:
         return self.winning_state == 1 or self.winning_state == 2 or self.winning_state == 4
     
     def get_available_moves(self):
+        if self.check_end():
+            return []
+        
         def gen(a):
             while True:
                 yield a
@@ -199,12 +215,6 @@ class UltimateTicTacToe:
             return list(zip(gen(subgame[0]), gen(subgame[1]), *valid))
 
     def simulate_random_playout(self):
-        current_player = self.current_player
-        available_moves = self.get_available_moves()
-        if not available_moves:
-            return 0.5  # Draw
-        move = random.choice(available_moves)
-        self.make_move(*move)
         while not self.check_end():
             available_moves = self.get_available_moves()
             if not available_moves:
@@ -213,13 +223,7 @@ class UltimateTicTacToe:
             move = random.choice(available_moves)
             self.make_move(*move)
         winner = self.winning_state
-        self.__init__()  # Reset the board
-        if winner == 1:
-            return 1
-        elif winner == 2:
-            return 0
-        else:
-            return 0.5
+        return winner
 
     def mcts(self, simulations):
         root = MCTSNode(self)
@@ -258,108 +262,38 @@ class UltimateTicTacToe:
         return new_game
 
 
-def play_monte(game, simulations=1000):
-    while not game.check_end():
-        current_grid = game.getAvailable()
-        print(f"Available grid to move: {'Any' if not current_grid else current_grid}")
-        if not current_grid:
-            while True:
-                large_row = input("Enter the row number of the large board (0-2): ")
-                large_col = input("Enter the column number of the large board (0-2): ")
-                try:
-                    large_row = int(large_row)
-                    large_col = int(large_col)
-                    if not(large_col>=0 and large_col<=2 and large_row>=0 and large_row<=2):
-                        print("Please provide a number from 0 to 2")
-                        continue
-                    break
-                except:
-                    if type(large_row) is str and "q" in large_row or type(large_col) is str and "q" in large_col:
-                        quit()
-                    print("Please provide valid input (a number from 0 to 2)")
-                    continue
-        else:
-            large_row, large_col = current_grid
-
-        if game.check_small_board_full(large_row, large_col):
-            print("This board is already full, select another.")
-            continue
-
-        while True:
-            small_row = input("Enter the row number of the small board (0-2): ")
-            small_col = input("Enter the column number of the small board (0-2): ")
-            try:
-                small_row = int(small_row)
-                small_col = int(small_col)
-
-                if not(small_col>=0 and small_col<=2 and small_row>=0 and small_row<=2):
-                    print("Please provide a number from 0 to 2")
-                    continue
-                break
-            except:
-                if type(small_row) is str and small_row == "q" in small_row or type(small_col) is str and "q" in small_col:
-                    quit()
-                print("Please provide valid input (a number from 0 to 2)")
-                continue
-
-        if game.small_boards[large_row, large_col, small_row, small_col] != 0:
-            print("This location is already full, select another.")
-            continue
-
-        game.make_move(large_row, large_col, small_row, small_col)
-        game.print_board()
-        if game.check_draw():
-            print("It's a draw!")
-            break
-        elif game.check_end():
-            game.switch_player()
-            print(f"Player {game.current_player} wins!")
-            break
+def play_monte(game, simulations=5000):
         current_grid = game.getAvailable()
         print(f"Current small grid move: {current_grid}")
 
-        # Monte Carlo Tree Search
-        if not game.check_end() and game.current_player==2:
-            move = game.mcts(simulations)
-            print(f"Monte Carlo suggests move: {move}")
-            large_row,large_col,small_row,small_col= move
-            game.make_move(large_row, large_col, small_row, small_col)
-            game.print_board()
-            if game.check_draw():
-                print("It's a draw!")
-                break
-            elif game.check_end():
-                game.switch_player()
-                print(f"Player {game.current_player} wins!")
-                break
+        move = game.mcts(simulations)
+        large_row,large_col,small_row,small_col= move
+        game.make_move(large_row, large_col, small_row, small_col)
+        game.print_board()
 
 def play_normal(game):
-    current_grid = None
-    while not game.winner and not game.check_draw():
-        print(f"Available grid to move: {game.getAvailable()}")
-        if not current_grid or not game.board[current_grid[0]][current_grid[1]]:
-            while True:
-                large_row = input("Enter the row number of the large board (0-2): ")
-                large_col = input("Enter the column number of the large board (0-2): ")
-                game.setAvailable(None)
-                try:
-                    large_row = int(large_row)
-                    large_col = int(large_col)
-                    if not (large_col >= 0 and large_col <= 2 and large_row >= 0 and large_row <= 2):
-                        print("Please provide a number from 0 to 2")
-                        continue
-                    break
-                except:
+    current_grid = game.getAvailable()
+    print(f"Current small grid move: {current_grid}")
+    if not current_grid or not game.board[current_grid[0]][current_grid[1]]:
+        while True:
+            large_row = input("Enter the row number of the large board (0-2): ")
+            large_col = input("Enter the column number of the large board (0-2): ")
+            try:
+                large_row = int(large_row)
+                large_col = int(large_col)
+                if not (large_col >= 0 and large_col <= 2 and large_row >= 0 and large_row <= 2):
+                    print("Please provide a number from 0 to 2")
+                    continue
+                if game.board[large_row, large_col] != 0:
+                    print("Large grid already won, change it.")
+                    current_grid = None
+                    continue
+                break
+            except:
                     if type(large_row) is str and "q" in large_row or type(large_col) is str and "q" in large_col:
                         quit()
                     print("Please provide valid input (a number from 0 to 2)")
                     continue
-
-            current_grid = [large_row, large_col]
-        if game.board[current_grid[0]][current_grid[1]] != " ":
-            print("Large grid already won, change it.")
-            current_grid = None
-            continue
 
         while True:
             small_row = input("Enter the row number of the small board (0-2): ")
@@ -371,6 +305,9 @@ def play_normal(game):
                 if not (small_col >= 0 and small_col <= 2 and small_row >= 0 and small_row <= 2):
                     print("Please provide a number from 0 to 2")
                     continue
+                if game.small_boards[large_row, large_col, small_row, small_col] != 0:
+                    print("This location is already full, select another.")
+                    continue
                 break
             except:
                 if type(small_row) is str and small_row == "q" in small_row or type(
@@ -379,27 +316,35 @@ def play_normal(game):
                 print("Please provide valid input (a number from 0 to 2)")
                 continue
 
-        if game.make_move(current_grid[0], current_grid[1], small_row, small_col):
-            game.print_board()
-            if game.winner:
-                game.switch_player()
-                print(f"Player {game.current_player} wins!")
-                break
-            elif game.check_draw():
-                print("It's a draw!")
-                break
-            if game.board[small_row][small_col] == " ":
-                current_grid = [small_row, small_col]
-            else:
-                game.setAvailable(None)
-                current_grid = None
-            print(f"Current small grid move: {current_grid}")
+        game.make_move(large_row, large_col, small_row, small_col)
+        game.print_board()
 
 
 if __name__ == "__main__":
     game = UltimateTicTacToe()
-    #game.unhash("O X OOOOOXX X XOOO X XO OOOX   XOOOOX  O  OOO OOOXXOOO  XOOOOOOXOOOOOOOOXO OOOOOO1",0)
-    play_monte(game,5000)
+    #game.unhash("O X OOOOOXX X XOOO X XO OOOX   XOOOOX  O  OOO OOOXXOOO  XOOOOOOXOOOOOOOOXO OOOOOO1",0)    
+    
+    game.print_board()
+    if not game.check_end():
+        while True:
+            play_monte(game,100)
+    
+            if game.check_draw():
+                print("It's a draw!")
+                break
+            elif game.check_end():
+                game.switch_player()
+                print(f"Player {game.current_player} wins!")
+                break
+            
+            play_monte(game,100)
+            if game.check_draw():
+                print("It's a draw!")
+                break
+            elif game.check_end():
+                game.switch_player()
+                print(f"Player {game.current_player} wins!")
+                break
     #play_normal(game)
     '''game.print_board()
     while not game.winner and not game.check_draw():
